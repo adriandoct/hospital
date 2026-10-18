@@ -74,6 +74,13 @@ DATABASES = {
     }
 }
 
+if 'DATABASE_URL' in os.environ:
+    try:
+        import dj_database_url
+        DATABASES['default'] = dj_database_url.config(conn_max_age=600, ssl_require=False)
+    except Exception:
+        pass
+
 # Modelo personalizado de médico basado en AbstractUser
 AUTH_USER_MODEL = 'federated_app.Medico'
 
