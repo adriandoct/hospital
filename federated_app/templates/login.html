@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Acceso Médico - Aprendizaje Federado{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-card glass-panel">
+        <div class="login-header">
+            <div class="login-icon">🩺</div>
+            <h2>Portal Médico Centralizado</h2>
+            <p class="text-muted">Acceso facultativo al Servidor Federado de Salud</p>
+        </div>
+
+        {% if error %}
+            <div class="alert alert-danger">
+                <span>⚠️</span>
+                <span>{{ error }}</span>
+            </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'login' %}" class="login-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="username">Usuario Médico</label>
+                <div class="input-icon-wrap">
+                    <span class="input-icon">👤</span>
+                    <input type="text" id="username" name="username" class="form-control" placeholder="dr_garcia" required autofocus>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <div class="input-icon-wrap">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                <span>Ingresar al Dashboard de Federación</span>
+                <span>→</span>
+            </button>
+        </form>
+
+        <div class="login-demo-box">
+            <span class="demo-title">Credenciales de prueba del sistema:</span>
+            <div class="demo-chips">
+                <button type="button" class="demo-chip" onclick="fillCreds('dr_garcia', 'medico123')">
+                    <strong>HospitalA:</strong> dr_garcia / medico123
+                </button>
+                <button type="button" class="demo-chip" onclick="fillCreds('dra_rodriguez', 'medico123')">
+                    <strong>HospitalB:</strong> dra_rodriguez / medico123
+                </button>
+                <button type="button" class="demo-chip" onclick="fillCreds('dr_santos', 'medico123')">
+                    <strong>HospitalC:</strong> dr_santos / medico123
+                </button>
+            </div>
+        </div>
+
+        <div class="security-notice">
+            <span>🔒 Canal Seguro TLS · Autenticación basada en sesiones Django · Registros clínicos cifrados en MongoDB</span>
+        </div>
+    </div>
+</div>
+
+<script>
+function fillCreds(u, p) {
+    document.getElementById('username').value = u;
+    document.getElementById('password').value = p;
+}
+</script>
+{% endblock %}

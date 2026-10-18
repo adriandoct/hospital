@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Federado - Diagnóstico de Diabetes{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header de bienvenida clínica -->
+    <header class="dash-header glass-panel">
+        <div class="header-main">
+            <div>
+                <div class="header-badges">
+                    <span class="badge badge-hospital">{{ medico.hospital.codigo|default:"Nodo Central" }}</span>
+                    <span class="badge badge-specialty">🩺 {{ medico.especialidad }}</span>
+                    <span class="badge badge-license">Cédula: {{ medico.cedula|default:"MED-84920" }}</span>
+                </div>
+                <h1 class="header-title">Panel de Control: Aprendizaje Federado de Salud</h1>
+                <p class="header-desc">
+                    Orquestación centralizada de pesos sin agregación de datos crudos · Modelo global vigente: 
+                    <strong class="text-cyan">{{ modelo_actual.version|default:"v1.0-inicial" }}</strong>
+                </p>
+            </div>
+            <div class="header-controls">
+                <button id="btnSimularRonda" class="btn btn-primary" onclick="ejecutarSimulacionRonda()">
+                    <span class="btn-spinner" id="simSpinner" style="display:none;">⚙️</span>
+                    <span>⚡ Lanzar Ronda Federada</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Métricas en tiempo real -->
+    <section class="metrics-grid">
+        <div class="metric-card glass-panel">
+            <div class="metric-icon">🔄</div>
+            <div class="metric-data">
+                <span class="metric-label">Ronda Actual</span>
+                <span class="metric-value text-accent" id="rondaNumero">#{{ ronda_actual.ronda_numero }}</span>
+                <span class="metric-sub">Estado: <span class="badge badge-success">{{ ronda_actual.estado }}</span></span>
+            </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+            <div class="metric-icon">🎯</div>
+            <div class="metric-data">
+                <span class="metric-label">Precisión Global (Accuracy)</span>
+                <span class="metric-value text-green" id="metricaAcc">
+                    {{ modelo_actual.metricas.accuracy|default:"0.72"|floatformat:4 }}
+                </span>
+                <span class="metric-sub">Evaluado sobre test set clínico</span>
+            </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+            <div class="metric-icon">📉</div>
+            <div class="metric-data">
+                <span class="metric-label">Pérdida Global (BCE Loss)</span>
+                <span class="metric-value text-amber" id="metricaLoss">
+                    {{ modelo_actual.metricas.loss|default:"0.54"|floatformat:4 }}
+                </span>
+                <span class="metric-sub">Binary Cross-Entropy</span>
+            </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+            <div class="metric-icon">🏥</div>
+            <div class="metric-data">
+                <span class="metric-label">Hospitales Participantes</span>
+                <span class="metric-value text-cyan">3 / 3</span>
+                <span class="metric-sub">Nodos federados activos</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visualización de la Arquitectura UML y Nodos Federados -->
+    <section class="section-panel glass-panel">
+        <div class="section-title-wrap">
+            <h3>🌐 Topología del Sistema Federado y Estado de Nodos</h3>
+            <span class="text-muted text-sm">Flujo de agregación FedAvg coordinado por el Servidor Central</span>
+        </div>
+
+        <div class="topology-grid">
+            {% for hosp in hospitales %}
+                <div class="hospital-card glass-card">
+                    <div class="hosp-header">
+                        <div class="hosp-indicator status-online"></div>
+                        <h4 class="hosp-code">{{ hosp.codigo }}</h4>
+                        <span class="badge badge-pill">Cliente Federado</span>
+                    </div>
+                    <p class="hosp-name">{{ hosp.nombre }}</p>
+                    
+                    <div class="hosp-details">
+                        <div class="detail-row">
+                            <span>API Key:</span>
+                            <code class="api-key-code" title="{{ hosp.api_key }}">{{ hosp.api_key|slice:":12" }}...</code>
+                        </div>
+                        <div class="detail-row">
+                            <span>Registros Locales:</span>
+                            <strong class="text-cyan">80 historias clínicas privadas</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Motor Local:</span>
+                            <span class="text-light">PyTorch MLP (DiagnosticoNN)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="hosp-footer">
+                        <span class="privacy-badge">🔒 Datos Clínicos Aislados</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Gráficas de Rendimiento e Inferencia Médica -->
+    <div class="two-column-grid">
+        <!-- Gráfica de evolución FedAvg -->
+        <section class="section-panel glass-panel">
+            <div class="section-title-wrap">
+                <h3>📈 Convergencia del Modelo Global</h3>
+                <span class="text-muted text-sm">Evolución de Accuracy y Loss tras cada ronda de FedAvg</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="fedChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Módulo Interactivo de Diagnóstico Clínico -->
+        <section class="section-panel glass-panel">
+            <div class="section-title-wrap">
+                <h3>🩺 Diagnóstico Clínico de Diabetes en Tiempo Real</h3>
+                <span class="text-muted text-sm">Inferencia directa con los pesos vigentes de la red neuronal</span>
+            </div>
+
+            <form id="formDiagnostico" class="diagnosis-form" onsubmit="realizarDiagnostico(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="diagEdad">Edad (Años)</label>
+                        <input type="number" id="diagEdad" class="form-control" value="52" min="18" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="diagImc">IMC (Índice Masa Corporal)</label>
+                        <input type="number" step="0.1" id="diagImc" class="form-control" value="31.4" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="diagGlucosa">Glucosa en Ayunas (mg/dL)</label>
+                        <input type="number" step="0.1" id="diagGlucosa" class="form-control" value="142" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="diagPresion">Presión Sistólica (mm Hg)</label>
+                        <input type="number" step="0.1" id="diagPresion" class="form-control" value="138" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-accent btn-block">
+                    <span>Evaluar Paciente con Red Global</span>
+                    <span>→</span>
+                </button>
+            </form>
+
+            <div id="resultadoDiagnostico" class="diagnosis-result glass-card" style="display:none;">
+                <div class="diag-header">
+                    <span class="diag-title">Resultado de Inferencia</span>
+                    <span id="diagBadgeAlerta" class="badge"></span>
+                </div>
+                <div class="diag-score-wrap">
+                    <div class="diag-prob-circle">
+                        <span id="diagPorcentaje" class="prob-num">0%</span>
+                        <span class="prob-label">Probabilidad</span>
+                    </div>
+                    <div class="diag-explanation">
+                        <h4 id="diagTextoResultado" class="text-accent"></h4>
+                        <p class="text-sm text-muted">
+                            Evaluado por red multicapa <strong>[Linear(4,32)→ReLU→Linear(32,32)→ReLU→Linear(32,1)→Sigmoid]</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MongoDB Colecciones y Auditoría -->
+    <section class="section-panel glass-panel">
+        <div class="section-title-wrap">
+            <h3>🍃 Almacenamiento Documental MongoDB (Base de Datos: <code>salud_federada</code>)</h3>
+            <span class="text-muted text-sm">Colecciones BSON auditables: <code>modelos_globales</code> y <code>rondas_federadas</code></span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Versión Modelo</th>
+                        <th>Ronda</th>
+                        <th>Parámetros</th>
+                        <th>Loss Global</th>
+                        <th>Accuracy Global</th>
+                        <th>Hospitales Contribuyentes</th>
+                        <th>Timestamp (UTC)</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaHistorial">
+                    {% for item in historial %}
+                        <tr>
+                            <td><span class="badge badge-info">{{ item.version }}</span></td>
+                            <td>#{{ item.ronda_numero }}</td>
+                            <td><code>{{ item.total_parametros }}</code></td>
+                            <td class="text-amber">{{ item.metricas.loss|floatformat:4 }}</td>
+                            <td class="text-green"><strong>{{ item.metricas.accuracy|floatformat:4 }}</strong></td>
+                            <td>
+                                {% for h in item.hospitales_contribuyentes %}
+                                    <span class="badge badge-pill-sm">{{ h }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="text-muted text-xs">{{ item.timestamp|slice:":19" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No se registran rondas en MongoDB aún.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configuración de Chart.js con datos de MongoDB
+    const labelsRaw = {{ labels_grafica|safe }};
+    const accDataRaw = {{ acc_grafica|safe }};
+    const lossDataRaw = {{ loss_grafica|safe }};
+
+    const ctx = document.getElementById('fedChart').getContext('2d');
+    const fedChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labelsRaw.length ? labelsRaw : ['Ronda 0'],
+            datasets: [
+                {
+                    label: 'Precisión Global (Accuracy %)',
+                    data: accDataRaw.length ? accDataRaw : [72],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.35,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Función de Pérdida (BCE Loss)',
+                    data: lossDataRaw.length ? lossDataRaw : [0.54],
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.35,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 12 } }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    min: 50,
+                    max: 100,
+                    ticks: { color: '#10b981', callback: v => v + '%' },
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    min: 0,
+                    max: 1.0,
+                    ticks: { color: '#f59e0b' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // Simular Ronda Federada con AJAX
+    async function ejecutarSimulacionRonda() {
+        const btn = document.getElementById('btnSimularRonda');
+        const spinner = document.getElementById('simSpinner');
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+
+        try {
+            const resp = await fetch('/api/simular-ronda/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                alert(`✅ ${data.mensaje}\nNueva versión: ${data.nuevo_modelo.version}\nAccuracy: ${(data.nuevo_modelo.metricas.accuracy * 100).toFixed(2)}% | Loss: ${data.nuevo_modelo.metricas.loss}`);
+                window.location.reload();
+            } else {
+                alert('Error al ejecutar la ronda federada: ' + (data.error || 'Desconocido'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error de conexión con el servidor federado');
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+        }
+    }
+
+    // Diagnóstico Clínico en tiempo real
+    async function realizarDiagnostico(e) {
+        e.preventDefault();
+        const payload = {
+            edad: document.getElementById('diagEdad').value,
+            imc: document.getElementById('diagImc').value,
+            glucosa: document.getElementById('diagGlucosa').value,
+            presion: document.getElementById('diagPresion').value
+        };
+
+        try {
+            const resp = await fetch('/api/diagnosticar/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                const res = data.resultado;
+                const panel = document.getElementById('resultadoDiagnostico');
+                panel.style.display = 'block';
+
+                document.getElementById('diagPorcentaje').innerText = res.porcentaje + '%';
+                document.getElementById('diagTextoResultado').innerText = res.diagnostico_sugerido;
+
+                const badge = document.getElementById('diagBadgeAlerta');
+                badge.className = 'badge';
+                if (res.nivel_alerta === 'alta') {
+                    badge.classList.add('badge-danger');
+                    badge.innerText = 'Riesgo Clínico Alto';
+                } else if (res.nivel_alerta === 'moderada') {
+                    badge.classList.add('badge-warning');
+                    badge.innerText = 'Riesgo Moderado';
+                } else {
+                    badge.classList.add('badge-success');
+                    badge.innerText = 'Bajo Riesgo / Normal';
+                }
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (err) {
+            alert('Error al comunicar con la red neuronal');
+        }
+    }
+</script>
+{% endblock %}

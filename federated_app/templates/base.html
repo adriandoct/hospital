@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FederatedHealth - Red Neuronal Federada para Diabetes{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-dark text-light">
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-icon">🏥</span>
+                <div>
+                    <span class="brand-title">FederatedHealth</span>
+                    <span class="brand-badge">IA Federada + MongoDB</span>
+                </div>
+            </div>
+            
+            <div class="nav-actions">
+                {% if user.is_authenticated %}
+                    <div class="user-pill">
+                        <span class="user-avatar">👨‍⚕️</span>
+                        <div class="user-info">
+                            <span class="user-name">Dr(a). {{ user.get_full_name|default:user.username }}</span>
+                            <span class="user-hospital">{{ user.hospital.codigo|default:"Servidor Central" }} · {{ user.especialidad }}</span>
+                        </div>
+                    </div>
+                    <a href="{% url 'logout' %}" class="btn btn-outline btn-sm">Cerrar Sesión</a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-primary btn-sm">Iniciar Sesión Médica</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <span>🛡️ Privacidad Sanitaria Garantizada: Los registros clínicos de los pacientes nunca abandonan las instalaciones hospitalarias.</span>
+            <span class="footer-tech">Django 6.1 · MongoDB · PyTorch (FedAvg) · Architecture UML Compliant</span>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
