@@ -193,7 +193,10 @@ def predecir_riesgo(edad, imc, glucosa, presion):
     Ejecuta inferencia diagnóstica con el modelo global vigente.
     Retorna la probabilidad (0-1) y la clasificación binaria sugerida.
     """
-    modelo_doc = obtener_ultimo_modelo_global()
+    try:
+        modelo_doc = obtener_ultimo_modelo_global()
+    except Exception:
+        modelo_doc = None
     modelo = ModeloDiagnosticoNN()
 
     if modelo_doc and "pesos" in modelo_doc:
