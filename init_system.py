@@ -94,16 +94,25 @@ def setup_all():
             print(f"   ℹ️ Médico ya existe: {m['username']}")
 
     print("\n📌 4. Inicializando Colecciones en MongoDB (salud_federada)...")
-    try:
-        sembrar_registros_clinicos_si_vacio()
-        modelo = inicializar_modelo_si_no_existe()
-        if modelo:
-            print(f"   🍃 MongoDB listo con modelo global vigente: {modelo.get('version')} (Ronda #{modelo.get('ronda_numero')})")
-        else:
-            print("   🍃 MongoDB conectado.")
-    except Exception as e:
-        print(f"   ⚠️ Nota: No se pudo conectar a MongoDB en este momento ({e}).")
-        print("   Verifica la variable MONGO_URI en tu panel de Railway o Atlas.")
+    from federated_app.mongo_db import verificar_conexion_mongo
+    ok, msg = verificar_conexion_mongo()
+    if ok:
+        try:
+            sembrar_registros_clinicos_si_vacio()
+            modelo = inicializar_modelo_si_no_existe()
+            if modelo:
+                print(f"   🍃 MongoDB listo con modelo global vigente: {modelo.get('version')} (Ronda #{modelo.get('ronda_numero')})")
+            else:
+                print("   🍃 MongoDB conectado.")
+        except Exception as e:
+            print(f"   ⚠️ Error al inicializar colecciones: {e}")
+    else:
+        print(f"   ⚠️ MongoDB no conectado: {msg}")
+        print("   💡 Pasos de solución en Railway / MongoDB Atlas:")
+        print("      1. Ve a MongoDB Atlas -> Database Access -> Crea un usuario con rol 'Read and write to any database'.")
+        print("      2. En Network Access -> Agrega IP '0.0.0.0/0' (Allow Access from Anywhere).")
+        print("      3. En Railway -> Variables -> Corrige MONGO_URI asegurando no dejar los corchetes < > ni comillas:")
+        print("         MONGO_URI=mongodb+srv://usuario:password@cluster.mongodb.net/?retryWrites=true&w=majority")
 
     print("\n✅ INICIALIZACIÓN COMPLETADA CON ÉXITO.")
 

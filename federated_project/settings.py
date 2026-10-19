@@ -21,8 +21,28 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure--6$97oc)(ka3%v)&jezp-7^$nf
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
-csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', 'https://*.railway.app,https://*.up.railway.app,http://localhost:8000,http://127.0.0.1:8000')
-CSRF_TRUSTED_ORIGINS = [orig.strip() for orig in csrf_origins.split(',') if orig.strip()]
+# Soporte para Proxy Inverso SSL en Railway
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# Orígenes confiables para validación CSRF en Railway y entornos locales
+trusted_origins = [
+    'https://*.railway.app',
+    'https://*.up.railway.app',
+    'https://web-production-28da9.up.railway.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+if railway_domain:
+    trusted_origins.append(f'https://{railway_domain}')
+
+env_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if env_csrf:
+    trusted_origins.extend([orig.strip() for orig in env_csrf.split(',') if orig.strip()])
+
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(trusted_origins))
 
 # Application definition
 INSTALLED_APPS = [
@@ -85,7 +105,9 @@ if 'DATABASE_URL' in os.environ:
 AUTH_USER_MODEL = 'federated_app.Medico'
 
 # Configuración de MongoDB para almacenamiento documental clínico y federado
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+MONGO_USER = os.getenv('MONGO_USER', 'admin_hospital')
+MONGO_PASSWORD = os.getenv('MONGO_PASSWORD', '12345678Rosario')
+MONGO_URI = os.getenv('MONGO_URI', '')
 MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'salud_federada')
 
 # Password validation

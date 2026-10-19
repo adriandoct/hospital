@@ -1,15 +1,101 @@
 import datetime
+import urllib.parse
 from django.conf import settings
 from pymongo import MongoClient, DESCENDING
+from pymongo.errors import PyMongoError, OperationFailure, ServerSelectionTimeoutError
 
 _client = None
 
-def get_mongo_client():
+def sanitize_mongo_uri(uri: str) -> str:
+    """
+    Limpia y corrige errores comunes de formato en cadenas de conexión de MongoDB / Atlas:
+      1. Elimina comillas externas accidentales (' o ") y espacios en blanco.
+      2. Remueve corchetes angulares accidentales < > dejados de la plantilla de Atlas.
+      3. Sustituye automáticamente placeholders como <usuario> o <password> por las credenciales configuradas.
+      4. Inserta las credenciales 'admin_hospital:12345678Rosario' si la URI no las contiene.
+      5. Codifica caracteres especiales en usuario y contraseña usando quote_plus.
+    """
+    default_user = getattr(settings, 'MONGO_USER', 'admin_hospital') or 'admin_hospital'
+    default_pwd = getattr(settings, 'MONGO_PASSWORD', '12345678Rosario') or '12345678Rosario'
+
+    if not uri or not isinstance(uri, str) or not uri.strip():
+        # Si no hay URI configurada, intentar conexión local
+        return f"mongodb://localhost:27017/"
+
+    uri = uri.strip().strip('"\'')
+    if not uri.startswith(('mongodb://', 'mongodb+srv://')):
+        return uri
+
+    try:
+        prefix, rest = uri.split('://', 1)
+
+        # Si no incluye autenticación (@), inyectar las credenciales configuradas
+        if '@' not in rest:
+            user_clean = urllib.parse.quote_plus(default_user)
+            pwd_clean = urllib.parse.quote_plus(default_pwd)
+            return f"{prefix}://{user_clean}:{pwd_clean}@{rest}"
+
+        # Separar credenciales del host y parámetros
+        auth_part, host_part = rest.rsplit('@', 1)
+        if ':' in auth_part:
+            user, pwd = auth_part.split(':', 1)
+            # Limpiar corchetes < y > de templates de Atlas
+            if user.startswith('<') and user.endswith('>'):
+                user = user[1:-1]
+            if pwd.startswith('<') and pwd.endswith('>'):
+                pwd = pwd[1:-1]
+
+            # Sustituir si quedaron textos de plantilla como usuario o password
+            if user.lower() in ('<usuario>', '<username>', '<db_username>', 'usuario', 'username', 'admin'):
+                user = default_user
+            if pwd.lower() in ('<password>', '<db_password>', 'password', '<contraseña>', 'contraseña', 'password123'):
+                pwd = default_pwd
+
+            user_clean = urllib.parse.quote_plus(urllib.parse.unquote_plus(user))
+            pwd_clean = urllib.parse.quote_plus(urllib.parse.unquote_plus(pwd))
+            return f"{prefix}://{user_clean}:{pwd_clean}@{host_part}"
+        elif auth_part:
+            # Solo se especificó usuario sin contraseña
+            user_clean = urllib.parse.quote_plus(urllib.parse.unquote_plus(auth_part))
+            pwd_clean = urllib.parse.quote_plus(default_pwd)
+            return f"{prefix}://{user_clean}:{pwd_clean}@{host_part}"
+    except Exception:
+        pass
+
+    return uri
+
+
+def get_mongo_client(force_new=False):
     global _client
-    if _client is None:
-        mongo_uri = getattr(settings, 'MONGO_URI', 'mongodb://localhost:27017/')
-        _client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000)
+    if _client is None or force_new:
+        raw_uri = getattr(settings, 'MONGO_URI', 'mongodb://localhost:27017/')
+        mongo_uri = sanitize_mongo_uri(raw_uri)
+        _client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3500)
     return _client
+
+
+def verificar_conexion_mongo():
+    """
+    Verifica si MongoDB está accesible y las credenciales son válidas.
+    Retorna (ok: bool, mensaje: str).
+    """
+    global _client
+    try:
+        client = get_mongo_client()
+        client.admin.command('ping')
+        return True, "Conectado correctamente a MongoDB"
+    except OperationFailure as e:
+        _client = None  # Permitir reintento si cambian credenciales
+        if 'bad auth' in str(e).lower() or e.code == 8000:
+            return False, "Error de autenticación en MongoDB Atlas (bad auth: usuario o contraseña incorrectos en MONGO_URI)"
+        return False, f"Fallo de operación en MongoDB: {e.details.get('errmsg', str(e)) if hasattr(e, 'details') and e.details else str(e)}"
+    except ServerSelectionTimeoutError as e:
+        _client = None
+        return False, "Tiempo de espera agotado al conectar a MongoDB (verifica Network Access / IP Whitelist en Atlas)"
+    except Exception as e:
+        _client = None
+        return False, f"No se pudo conectar a MongoDB: {str(e)}"
+
 
 def get_mongo_db():
     client = get_mongo_client()

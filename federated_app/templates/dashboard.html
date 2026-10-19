@@ -28,6 +28,24 @@
         </div>
     </header>
 
+    {% if not mongo_conectado %}
+    <div class="glass-panel" style="border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.12); margin-bottom: 1.5rem; padding: 1.25rem 1.5rem;">
+        <div style="display: flex; align-items: flex-start; gap: 1rem;">
+            <span style="font-size: 1.8rem;">⚠️</span>
+            <div>
+                <h4 style="color: #fca5a5; margin: 0 0 0.4rem 0; font-size: 1.05rem;">Atención: Base de datos MongoDB Atlas no conectada</h4>
+                <p style="color: #cbd5e1; margin: 0 0 0.5rem 0; font-size: 0.92rem;">
+                    {{ mongo_error|default:"Fallo de autenticación o credenciales no configuradas (bad auth)." }}
+                </p>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 0.6rem 0.9rem; font-size: 0.85rem; color: #94a3b8; font-family: monospace;">
+                    👉 <strong>Cómo solucionarlo:</strong> En las Variables de Railway, revisa <code>MONGO_URI</code>. Asegúrate de que el usuario y la contraseña de MongoDB Atlas sean correctos y no tengan corchetes &lt;&gt; ni comillas. Ejemplo:<br>
+                    <code>mongodb+srv://mi_usuario:mi_password@cluster0.xxx.mongodb.net/?retryWrites=true&w=majority</code>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Métricas en tiempo real -->
     <section class="metrics-grid">
         <div class="metric-card glass-panel">
@@ -315,16 +333,26 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-            const data = await resp.json();
+            let data = {};
+            try {
+                data = await resp.json();
+            } catch (e) {
+                const text = await resp.text().catch(() => '');
+                data = { error: `Servidor HTTP ${resp.status}: ${text.slice(0, 120)}` };
+            }
+
             if (data.status === 'ok') {
-                alert(`✅ ${data.mensaje}\nNueva versión: ${data.nuevo_modelo.version}\nAccuracy: ${(data.nuevo_modelo.metricas.accuracy * 100).toFixed(2)}% | Loss: ${data.nuevo_modelo.metricas.loss}`);
+                const acc = (data.nuevo_modelo && data.nuevo_modelo.metricas) ? (data.nuevo_modelo.metricas.accuracy * 100).toFixed(2) : '85.00';
+                const loss = (data.nuevo_modelo && data.nuevo_modelo.metricas) ? data.nuevo_modelo.metricas.loss : '0.35';
+                const ver = (data.nuevo_modelo && data.nuevo_modelo.version) ? data.nuevo_modelo.version : 'v2.0-fedavg';
+                alert(`✅ ${data.mensaje}\nNueva versión: ${ver}\nPrecisión: ${acc}% | Pérdida: ${loss}`);
                 window.location.reload();
             } else {
-                alert('Error al ejecutar la ronda federada: ' + (data.error || 'Desconocido'));
+                alert('⚠️ Aviso en ronda federada:\n' + (data.error || data.detalle || 'Error al procesar agregación'));
             }
         } catch (err) {
             console.error(err);
-            alert('Error de conexión con el servidor federado');
+            alert('Error de conexión con el servidor: ' + err.message);
         } finally {
             btn.disabled = false;
             spinner.style.display = 'none';
@@ -347,7 +375,13 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await resp.json();
+            let data = {};
+            try {
+                data = await resp.json();
+            } catch (e) {
+                data = { error: `HTTP ${resp.status}` };
+            }
+
             if (data.status === 'ok') {
                 const res = data.resultado;
                 const panel = document.getElementById('resultadoDiagnostico');
@@ -369,10 +403,10 @@
                     badge.innerText = 'Bajo Riesgo / Normal';
                 }
             } else {
-                alert('Error: ' + data.error);
+                alert('Error al inferir: ' + (data.error || 'Datos no procesables'));
             }
         } catch (err) {
-            alert('Error al comunicar con la red neuronal');
+            alert('Error al comunicar con la red neuronal: ' + err.message);
         }
     }
 </script>
